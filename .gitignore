@@ -1,0 +1,12 @@
+# Secrets. This repo is public — a key committed here is drained within minutes.
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+node_modules/
+dist/
+.cache/
+*.log
+.DS_Store
