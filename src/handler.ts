@@ -103,7 +103,10 @@ const json = (res: ServerResponse, code: number, body: unknown) => {
 
 export async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`)
-  const path = url.pathname.replace(/\/+$/, '') || '/'
+  // Vercel rewrites every request through /api/*, so the deployed copy sees an
+  // extra prefix the local server never does. Strip it here rather than in two
+  // entry points, so both see identical paths and cannot diverge.
+  const path = url.pathname.replace(/^\/api(?=\/|$)/, '').replace(/\/+$/, '') || '/'
 
   try {
     // Stitch wants one feed per pool, so the corridor is in the path.
