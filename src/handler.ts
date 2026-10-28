@@ -59,6 +59,27 @@ export function decide(r: CorridorReading | undefined): Decision {
   // orders, so it happens here, once, and nowhere else.
   const price = 1 / r.mid
 
+  // Viability gate. The scanner already knows what this corridor pays after
+  // the venue fee and gas at our clip size; quoting it when that is negative
+  // is paying for the privilege of taking inventory risk.
+  //
+  // This is the whole corridor-selection idea reaching the wire. Stitch can
+  // hold every corridor configured at once, and Ayo decides which of them are
+  // live by whether it serves a fresh price or an old one. A corridor that
+  // stops paying goes quiet within one poll, and comes back the moment it is
+  // worth quoting again — without a restart, and without anyone watching.
+  if (!r.tradeable) {
+    return {
+      payload: { price, timestamp: nowSecs - STAND_DOWN_AGE_SECS },
+      quoting: false,
+      reading: r,
+      why:
+        r.netEdgeBps === null
+          ? `${r.corridor.id}: ${r.note} Standing down.`
+          : `${r.corridor.id} nets ${r.netEdgeBps.toFixed(2)}bp after fee and gas — quoting it loses money. Standing down.`,
+    }
+  }
+
   if (r.crossCheck) {
     const st = stats()
     const b = r.crossCheck.basisBps
