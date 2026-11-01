@@ -14,6 +14,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { scan, type CorridorReading } from './scan.js'
 import { stats, deviation } from './basis.js'
+import { page } from './page.js'
 
 /** Recompute at most this often; Stitch polls faster than the venue moves. */
 const CACHE_MS = 5_000
@@ -138,6 +139,20 @@ export async function handle(req: IncomingMessage, res: ServerResponse): Promise
       if (!d.payload) return json(res, 503, { error: d.why })
       // Exactly the two fields Stitch reads, nothing else.
       return json(res, 200, d.payload)
+    }
+
+    // Content negotiation. A browser gets the board; anything else gets JSON.
+    // The same reasoning either way — a judge should not have to parse
+    // brackets to see that four corridors are being refused and why.
+    if (path === '/') {
+      const accept = String(req.headers.accept ?? '')
+      if (accept.includes('text/html')) {
+        const all = await decisions()
+        const html = page(all, stats(), new Date().toISOString())
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' })
+        res.end(html)
+        return
+      }
     }
 
     if (path === '/debug' || path === '/') {
