@@ -15,6 +15,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { scan, type CorridorReading } from './scan.js'
 import { stats, deviation } from './basis.js'
 import { page } from './page.js'
+import { readAll, skewBps, MAX_SKEW_BPS, type Inventory } from './inventory.js'
 
 /** Recompute at most this often; Stitch polls faster than the venue moves. */
 const CACHE_MS = 5_000
@@ -43,22 +44,39 @@ export interface Decision {
   why: string
   quoting: boolean
   reading: CorridorReading | null
+  /** What the book holds on this corridor, when we can read it. */
+  inventory: Inventory | null
+  /** How far the published price was leaned, in bps. Signed. */
+  skewBps: number
 }
 
 let cached: { at: number; byCorridor: Map<string, Decision> } | null = null
 
-export function decide(r: CorridorReading | undefined): Decision {
+export function decide(r: CorridorReading | undefined, inv?: Inventory): Decision {
   const nowSecs = Math.floor(Date.now() / 1000)
 
   if (!r || r.mid === null) {
-    return { payload: null, quoting: false, reading: r ?? null, why: 'No two-sided mid from Textile. Nothing to price off.' }
+    return { payload: null, quoting: false, reading: r ?? null, inventory: inv ?? null, skewBps: 0, why: 'No two-sided mid from Textile. Nothing to price off.' }
   }
 
   // The inversion. Everything upstream is soft-per-stable (1383 NGN/USD₮);
   // Stitch wants stable-per-soft (0.000723 USD₮/NGN). Their docs warn that
   // publishing this the wrong way up makes the bot post wildly mispriced
   // orders, so it happens here, once, and nowhere else.
-  const price = 1 / r.mid
+  const fair = 1 / r.mid
+
+  /**
+   * Inventory skew, applied to the price rather than the spread.
+   *
+   * Stitch derives both its bid and its ask from this one number, so moving
+   * it moves both sides together. Long the counter-asset means publishing a
+   * slightly lower price: the bot then bids lower (buys less of what we are
+   * already heavy in) and asks lower (sells it more readily), and the book
+   * walks back toward balance across many fills instead of accumulating
+   * until it is stuck.
+   */
+  const skew = skewBps(inv)
+  const price = fair * (1 + skew / 10_000)
 
   // Viability gate. The scanner already knows what this corridor pays after
   // the venue fee and gas at our clip size; quoting it when that is negative
@@ -74,6 +92,8 @@ export function decide(r: CorridorReading | undefined): Decision {
       payload: { price, timestamp: nowSecs - STAND_DOWN_AGE_SECS },
       quoting: false,
       reading: r,
+      inventory: inv ?? null,
+      skewBps: skew,
       why:
         r.netEdgeBps === null
           ? `${r.corridor.id}: ${r.note} Standing down.`
@@ -95,25 +115,39 @@ export function decide(r: CorridorReading | undefined): Decision {
           payload: { price, timestamp: nowSecs - STAND_DOWN_AGE_SECS },
           quoting: false,
           reading: r,
+          inventory: inv ?? null,
+          skewBps: skew,
           why: `Basis ${b.toFixed(1)}bp is ${dev.toFixed(1)}bp from its mean, past the ${limit.toFixed(1)}bp limit. Publishing a stale timestamp so Stitch stands down.`,
         }
       }
     }
   }
 
+  const leaning =
+    skew === 0
+      ? ''
+      : ` Book is ${inv && inv.balance < 0 ? 'long ' + r.corridor.id : 'long USD\u20AE'}, so the price is leaned ${skew > 0 ? '+' : ''}${skew.toFixed(2)}bp to work it back.`
+
   return {
     payload: { price, timestamp: nowSecs },
     quoting: true,
     reading: r,
-    why: `Quoting off a ${r.spreadBps?.toFixed(2)}bp venue spread; net ${r.netEdgeBps?.toFixed(2)}bp after fee and gas.`,
+    inventory: inv ?? null,
+    skewBps: skew,
+    why: `Quoting off a ${r.spreadBps?.toFixed(2)}bp venue spread; net ${r.netEdgeBps?.toFixed(2)}bp after fee and gas.${leaning}`,
   }
 }
 
 export async function decisions(): Promise<Map<string, Decision>> {
   if (cached && Date.now() - cached.at < CACHE_MS) return cached.byCorridor
   const s = await scan()
+  const mids = new Map(s.readings.map((r) => [r.corridor.id.toLowerCase(), r.mid]))
+  const inventories = await readAll(mids).catch(() => new Map<string, Inventory>())
   const byCorridor = new Map<string, Decision>()
-  for (const r of s.readings) byCorridor.set(r.corridor.id.toLowerCase(), decide(r))
+  for (const r of s.readings) {
+    const id = r.corridor.id.toLowerCase()
+    byCorridor.set(id, decide(r, inventories.get(id)))
+  }
   cached = { at: Date.now(), byCorridor }
   return byCorridor
 }

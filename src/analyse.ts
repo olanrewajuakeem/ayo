@@ -143,12 +143,53 @@ function main() {
       }
     }
 
+    void 0
     console.log(`  $${clip} clip · ${moments.toLocaleString()} moments`)
     console.log(`    cNGN below cost, or unquotable      ${padL(pct(cngnUnderwater, moments), 8)}`)
     console.log(`    another corridor paid more          ${padL(pct(somethingElseBetter, moments), 8)}`)
     console.log(`    nothing cleared costs anywhere      ${padL(pct(nothingWorked, moments), 8)}`)
     console.log(`    average edge forgone by staying     ${padL((forgoneBps / Math.max(1, somethingElseBetter)).toFixed(2) + 'bp', 8)}\n`)
   }
+
+  // ---- 4. The capital floor ----------------------------------------------
+  //
+  // The question nobody asks until they have already funded a wallet: how
+  // much does a filler need before quoting this venue is possible at all?
+  //
+  // Two constraints have to overlap. To win a request you must quote inside
+  // the existing market, so no wider than half the venue spread from mid. To
+  // make money you must quote wider than your costs — the protocol fee plus
+  // gas. Gas is fixed in dollars, so as a share of the clip it falls as the
+  // clip grows, and below some size the two constraints have no overlap at
+  // all: every price that wins is a loss, and every price that profits is
+  // outside the market.
+  //
+  //   gasBps(C) + fee  <  spread / 2
+  //
+  // Solving for C gives the smallest clip that can trade a given spread.
+  const GAS_USD = 0.005
+  const minClipFor = (spreadBps: number): number | null => {
+    const room = spreadBps / 2 - PROTOCOL_FEE_BPS
+    if (room <= 0) return null // no spread can cover the fee alone
+    return (GAS_USD / (room / 10_000))
+  }
+
+  console.log(`  THE CAPITAL FLOOR`)
+  console.log(`  smallest clip that can quote inside the market and still clear costs\n`)
+  console.log(`  ${pad('pair', 7)}${padL('median spread', 15)}${padL('min clip', 11)}${padL('at p75 spread', 15)}${padL('min clip', 11)}`)
+  for (const g of groups) {
+    const s = [...g.spreads].sort((a, b) => a - b)
+    if (s.length === 0) continue
+    const med = quantile(s, 0.5)
+    const p75 = quantile(s, 0.75)
+    const fmt = (v: number | null) => (v === null ? 'impossible' : v < 1000 ? `$${v.toFixed(0)}` : `$${(v / 1000).toFixed(1)}k`)
+    console.log(
+      `  ${pad(g.id, 7)}${padL(med.toFixed(2) + 'bp', 15)}${padL(fmt(minClipFor(med)), 11)}${padL(p75.toFixed(2) + 'bp', 15)}${padL(fmt(minClipFor(p75)), 11)}`
+    )
+  }
+  console.log(`\n  assumes ${PROTOCOL_FEE_BPS}bp protocol fee and $${GAS_USD} of gas per fill.`)
+  console.log(`  a book quoting below its corridor's floor loses on every fill it wins,`)
+  console.log(`  and wins none of the fills it would profit from.\n`)
 }
 
 main()
