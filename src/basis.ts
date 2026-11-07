@@ -18,6 +18,7 @@
  */
 import { appendFileSync, readFileSync, mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
+import { SEED } from './basis-seed.js'
 
 const STORE = process.env.AYO_BASIS_LOG ?? '.cache/basis.jsonl'
 
@@ -48,6 +49,15 @@ export interface BasisStats {
   /** 95th percentile of |observation − mean|, the honest analogue of Stitch's static floor. */
   p95DeviationBps: number | null
   warmedUp: boolean
+  /**
+   * True when the figures come from the committed seed rather than from samples
+   * taken here. Callers that report calibration to a human must say which,
+   * because "calibrated" and "calibrated somewhere else, once" are different
+   * claims and only one of them is about this machine.
+   */
+  seeded: boolean
+  /** When the seed was measured, if that is what these figures are. */
+  seedAt: string | null
 }
 
 /** Signed basis in bps: how far Textile sits above Mento. */
@@ -84,10 +94,30 @@ export function load(): Sample[] {
   }
 }
 
+/**
+ * Fall back to the committed seed.
+ *
+ * Only reached when this machine has not watched long enough to speak for
+ * itself. `n` stays honest — it reports what *we* have seen, not the seed's
+ * sample count — so nothing downstream can mistake a seeded calibration for a
+ * long local record.
+ */
+function seeded(n: number): BasisStats | null {
+  if (!SEED) return null
+  return {
+    n,
+    meanBps: SEED.meanBps,
+    stdevBps: SEED.stdevBps,
+    p95DeviationBps: SEED.p95DeviationBps,
+    warmedUp: true,
+    seeded: true,
+    seedAt: SEED.at,
+  }
+}
+
 export function stats(samples: Sample[] = load()): BasisStats {
   const vals = samples.map((s) => s.basisBps).filter(Number.isFinite)
   const n = vals.length
-  if (n === 0) return { n: 0, meanBps: null, stdevBps: null, p95DeviationBps: null, warmedUp: false }
 
   const mean = vals.reduce((a, b) => a + b, 0) / n
   const variance = vals.reduce((a, b) => a + (b - mean) ** 2, 0) / n
@@ -96,13 +126,26 @@ export function stats(samples: Sample[] = load()): BasisStats {
   const deviations = vals.map((v) => Math.abs(v - mean)).sort((a, b) => a - b)
   const p95 = deviations[Math.min(deviations.length - 1, Math.floor(deviations.length * 0.95))]
 
+  // Local samples outrank the seed as soon as there are enough of them: they are
+  // from this machine, at this moment, and the seed is by construction older.
   const warmedUp = n >= WARMUP_SAMPLES
+  if (!warmedUp) {
+    const fallback = seeded(n)
+    if (fallback) return fallback
+  }
+
+  if (n === 0) {
+    return { n: 0, meanBps: null, stdevBps: null, p95DeviationBps: null, warmedUp: false, seeded: false, seedAt: null }
+  }
+
   return {
     n,
     meanBps: warmedUp ? mean : null,
     stdevBps: warmedUp ? stdev : null,
     p95DeviationBps: warmedUp ? p95 : null,
     warmedUp,
+    seeded: false,
+    seedAt: null,
   }
 }
 

@@ -13,7 +13,7 @@
  */
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { scan, type CorridorReading } from './scan.js'
-import { stats, deviation } from './basis.js'
+import { stats, deviation, WARMUP_SAMPLES } from './basis.js'
 import { page } from './page.js'
 import { readAll, skewBps, MAX_SKEW_BPS, type Inventory } from './inventory.js'
 
@@ -197,9 +197,13 @@ export async function handle(req: IncomingMessage, res: ServerResponse): Promise
         at: new Date().toISOString(),
         basis: {
           ...st,
-          note: st.n === 0
-            ? 'No basis history here: this copy is serverless and has no disk. Calibration accumulates on the machine actually quoting.'
-            : undefined,
+          // Three genuinely different states, and conflating any two of them
+          // would misrepresent how much this copy actually knows.
+          note: st.seeded
+            ? `Seeded calibration, measured ${st.seedAt} on a machine rented for the purpose — this copy is serverless and has no disk, so it cannot reach ${WARMUP_SAMPLES} samples itself. ${st.n} live sample(s) here so far; they take over once there are ${WARMUP_SAMPLES}.`
+            : st.n === 0
+              ? 'No basis history and no seed: this copy is serverless and has no disk. Calibration accumulates on the machine actually quoting.'
+              : undefined,
         },
         corridors: [...all.entries()].map(([id, d]) => ({
           id,

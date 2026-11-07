@@ -96,11 +96,18 @@ That last step is the whole mechanism. Stitch already skips a pool whose feed ha
 
 ## The naira cross-check
 
-Mento runs a separate naira market on the same chain, in NGNm. It is a **different token** from cNGN, and the two sit at a persistent spread — **418bp** on the first live reading, and stable to within a basis point over hours.
+Mento runs a separate naira market on the same chain, in NGNm. It is a **different token** from cNGN, and the two sit at a persistent spread — **418bp** on the first live reading, stable to within a basis point over hours.
 
-Over weeks it is not stable at all. The same measurement on 4 November reads **353bp**: 65bp of drift in a level that holds steady hour to hour. That is the argument for this whole file in one number. A filler that hardcoded 418 would now be wrong by two-thirds of a typical cNGN spread, and would have had no way to notice.
+Across days it is not stable at all. Here is the calibration and the live reading together, from a run on 4 November:
 
-So the raw gap carries no information, and neither does a gap you measured last week. Only the deviation from a *currently calibrated* mean does. Ayo records every observation, **refuses to trust a mean before 120 samples**, and stands down when the basis drifts away from where it has recently been living. It is the one corridor where a genuinely independent second opinion exists.
+```
+basis 356.2bp   deviation 45.62bp
+mean 401.8bp    stdev 13.97bp    p95 deviation 20.45bp    n=1440
+```
+
+The mean has walked from 418 to 402, and the current reading sits 45.6bp away from it — past the 40.9bp the measured p95 allows. **So the naira is gated off at that moment, and cNGN is not quoted.** Not because a threshold was typed in, but because this basis has been living within 20bp of its mean for 1,440 observations and is now 45 away.
+
+That is the whole mechanism in one screen. The raw gap carries no information, and neither does a gap measured last week. Only the deviation from a *currently calibrated* mean does — which is why Ayo records every observation, **refuses to trust a mean before 120 samples**, and stands down when the basis leaves the range it has recently kept to. It is the one corridor where a genuinely independent second opinion exists.
 
 ## Running it
 
@@ -137,6 +144,31 @@ The arithmetic is a coincidence worth noticing. `basis.ts` puts the warmup at "a
 | for | `e2-micro`, `us-west1-a`, one hour |
 
 **Read that transaction through its `Transfer` log, not its `from` field.** x402 settles as an EIP-3009 authorisation: the agent wallet *signs* the payment, and a facilitator broadcasts it and pays the gas. So the transaction's sender is `0x0d74…fb48`, and the evidence that this agent paid is the ERC-20 transfer of 0.016753 USD₮ out of `0xc3A2…dA0D`. Judging the sender field would attribute every x402 payment on Celo to the facilitators.
+
+### The rented hour returned nothing
+
+It is worth writing down plainly, because the failure was more instructive than the purchase.
+
+The machine was provisioned, ran for the full lease, and returned no output at all. `scriptStatus` never left `null`, the VM was deleted at expiry, and the gateway retains a result only for a script it saw finish. The lease is now gone — the poll URL answers `no such lease`. The payment is real and on-chain; the data it was meant to buy does not exist.
+
+The cause was a design error, not a gateway fault. The calibration script was written to print only at completion, and sized at 54 minutes inside a 3600-second lease. That puts the entire value of the purchase in its final second, so any delay — boot time, one slow HTTP call, the guest agent reporting late — loses all of it. **Against a hard, paid deadline, a job should emit its result incrementally or finish far inside the window.** This did neither.
+
+Two things follow for anyone buying compute this way:
+
+- Treat lease expiry as a deadline that destroys output, not one that merely stops work.
+- Prefer many short purchases that each return something over one long purchase that returns everything or nothing.
+
+The seed below is therefore **local data, not bought data** — 1,440 genuine observations from the machine that did the quoting. `src/basis-seed.ts` says so in the file itself. The honest version of this section is that the purchase proved an agent can pay for its own infrastructure, and proved nothing yet about getting value back.
+
+### The seed
+
+`basis.ts` falls back to `src/basis-seed.ts` whenever the local log is short, so the hosted copy starts with a calibration it could never compute itself:
+
+```
+n 1440   mean 401.84bp   stdev 13.97bp   p95 deviation 20.45bp
+```
+
+It is a **prior, not a pretence**. Live samples outrank it the moment there are 120 of them, `n` keeps reporting what this machine has actually seen rather than the seed's count, and `/debug` reports `seeded` with the date and provenance. A reader is never told this copy has watched for an hour when it has not.
 
 Two findings came out of building it, both filed as [celo-org/buy-skill#77](https://github.com/celo-org/buy-skill/issues/77):
 

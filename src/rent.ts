@@ -22,9 +22,14 @@
  * is the unit this agent needs to buy.
  *
  * It pays over x402 straight from the tagged wallet rather than through the `buy`
- * CLI, because that CLI generates its own keychain wallet and has no import path
- * (`buy account` offers list/use/remove/cap and nothing else). A paid call that
- * settles from some other address is not a paid call this entry can claim.
+ * CLI. Not because the CLI cannot: 0.8.4 added `setup --import`, which adopts an
+ * already-declared wallet from `BUY_IMPORT_KEY`. Because paying in-process keeps
+ * the parts that matter explicit and reviewable — the spend ceiling, the token
+ * selection, the refusal to fall back to a token this wallet does not hold — and
+ * copies no key into an OS keychain to get there.
+ *
+ * What is not optional is where it settles from. A paid call that leaves some
+ * other address is not a paid call this agent can claim.
  *
  *   npx tsx --env-file=.env src/rent.ts --quote      ask the price, pay nothing
  *   npx tsx --env-file=.env src/rent.ts              buy the hour and run it
