@@ -58,6 +58,15 @@ export interface BasisStats {
   seeded: boolean
   /** When the seed was measured, if that is what these figures are. */
   seedAt: string | null
+  /**
+   * Where the seed came from, in the seed's own words.
+   *
+   * Carried through rather than described by the caller, because a caller that
+   * writes its own provenance string will eventually describe a seed it is no
+   * longer looking at — which is exactly what happened here once a rented run
+   * failed and the committed figures turned out to be local.
+   */
+  seedSource: string | null
 }
 
 /** Signed basis in bps: how far Textile sits above Mento. */
@@ -112,6 +121,7 @@ function seeded(n: number): BasisStats | null {
     warmedUp: true,
     seeded: true,
     seedAt: SEED.at,
+    seedSource: SEED.source,
   }
 }
 
@@ -135,7 +145,16 @@ export function stats(samples: Sample[] = load()): BasisStats {
   }
 
   if (n === 0) {
-    return { n: 0, meanBps: null, stdevBps: null, p95DeviationBps: null, warmedUp: false, seeded: false, seedAt: null }
+    return {
+      n: 0,
+      meanBps: null,
+      stdevBps: null,
+      p95DeviationBps: null,
+      warmedUp: false,
+      seeded: false,
+      seedAt: null,
+      seedSource: null,
+    }
   }
 
   return {
@@ -146,6 +165,7 @@ export function stats(samples: Sample[] = load()): BasisStats {
     warmedUp,
     seeded: false,
     seedAt: null,
+    seedSource: null,
   }
 }
 

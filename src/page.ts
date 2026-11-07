@@ -140,7 +140,7 @@ export function page(decisions: Map<string, Decision>, basis: BasisStats, at: st
   <section class="meta">
     <div><b>${quoting} of ${entries.length}</b><span>quoting</span></div>
     <div><b>${basisBps === null || basisBps === undefined ? '—' : basisBps.toFixed(0) + 'bp'}</b><span>naira basis</span></div>
-    <div><b>${basis.n}${basis.warmedUp ? '' : '/120'}</b><span>basis samples</span></div>
+    <div><b>${basis.n}${basis.warmedUp ? '' : '/120'}</b><span>${basis.seeded ? 'local samples · seeded' : 'basis samples'}</span></div>
     <div><b>${esc(at.slice(11, 19))}</b><span>as of · utc</span></div>
   </section>
 

@@ -200,7 +200,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse): Promise
           // Three genuinely different states, and conflating any two of them
           // would misrepresent how much this copy actually knows.
           note: st.seeded
-            ? `Seeded calibration, measured ${st.seedAt} on a machine rented for the purpose — this copy is serverless and has no disk, so it cannot reach ${WARMUP_SAMPLES} samples itself. ${st.n} live sample(s) here so far; they take over once there are ${WARMUP_SAMPLES}.`
+            ? `Seeded calibration from ${st.seedSource ?? 'an unstated source'}, measured ${st.seedAt}. This copy is serverless and has no disk, so it cannot reach ${WARMUP_SAMPLES} samples itself. ${st.n} live sample(s) here so far; they take over once there are ${WARMUP_SAMPLES}.`
             : st.n === 0
               ? 'No basis history and no seed: this copy is serverless and has no disk. Calibration accumulates on the machine actually quoting.'
               : undefined,
