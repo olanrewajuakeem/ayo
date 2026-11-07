@@ -3,14 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "An inventory-aware filler for the cNGN/USD₮ corridor on Textile FX, Celo mainnet.",
+  "description": "An inventory-aware filler for the cNGN/USD\u20ae corridor on Textile FX, Celo mainnet.",
   "scripts": {
     "feed": "tsx src/cli.ts",
     "watch": "tsx src/cli.ts --watch",
     "serve": "tsx src/server.ts",
     "tag": "tsx --env-file=.env src/tag.ts",
     "rent": "tsx --env-file=.env src/rent.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "swap": "tsx --env-file=.env src/swap.ts",
+    "naira": "tsx --env-file=.env src/naira.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

@@ -109,6 +109,33 @@ The mean has walked from 418 to 402, and the current reading sits 45.6bp away fr
 
 That is the whole mechanism in one screen. The raw gap carries no information, and neither does a gap measured last week. Only the deviation from a *currently calibrated* mean does — which is why Ayo records every observation, **refuses to trust a mean before 120 samples**, and stands down when the basis leaves the range it has recently kept to. It is the one corridor where a genuinely independent second opinion exists.
 
+## What the basis actually is
+
+The paragraph above calls the gap "a fact about the two instruments" — plumbing, with information only in its deviation. That was the honest reading of what can be measured from Celo alone, and it turns out to be the wrong description.
+
+Nigeria has two dollar prices: the **official** rate, and the **street** rate that Nigerians actually transact at, which has run above it for years. Nothing on-chain can tell you which one a token tracks, because both anchors are off-chain. So the agent bought them — `naira-rates/usd-ngn`, 0.01 USA₮ a call, official plus street from Quidax and Luno P2P books — and compared them against its own two sources read at the same moment:
+
+```
+official      1348.1100   (open.er-api.com)
+street mid    1377.1700   (Quidax 1378.09, Luno 1376.26)
+premium       2.16%
+
+Textile cNGN  1377.4900
+
+cNGN vs street rate      2.32bp
+cNGN vs official rate  217.93bp
+```
+
+**Textile's cNGN tracks the street rate to within 2.3 basis points, and sits 218bp from the official rate — 94× further.** The corridor is priced off the parallel market, not the central-bank fix. Which means the cNGN↔NGNm basis is not a plumbing artefact at all: it is substantially **Nigeria's parallel-market premium**, and this agent has been sampling a piece of Nigerian macroeconomics every thirty seconds without knowing what it was looking at.
+
+The practical consequence for a filler is immediate. If you sanity-check a naira corridor against an official or bank-sourced USD/NGN rate — the obvious thing to reach for, and what most price APIs return by default — you will read a permanent 200bp+ error as a mispricing, and either stand down constantly or quote into a gap that is not there.
+
+### What this does not establish
+
+- **One observation.** 2.32bp against 217.93bp is a 94× difference rather than a coincidence, but a single reading cannot show the relationship holds under stress. `.cache/naira-rates.jsonl` accumulates them; `npm run naira` adds one for a cent.
+- **The NGNm leg is untested.** Mento's oracle was quiet at that moment — Cowrie answered 503, which this repo treats as information rather than failure — so the comparison covers cNGN against both anchors but says nothing yet about where NGNm sits. Until that is measured, "the basis *is* the premium" remains the best available reading, not a demonstrated identity.
+- **The seller is one source.** Two P2P books are not the parallel market, and the listing is marked experimental by `buy`. A second independent street source would make this much stronger.
+
 ## Running it
 
 ```sh
