@@ -13,6 +13,7 @@
  */
 import type { Decision } from './handler.js'
 import type { BasisStats } from './basis.js'
+import { PURCHASES, AGENT_WALLET } from './purchases.js'
 
 const esc = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -119,6 +120,27 @@ export function page(decisions: Map<string, Decision>, basis: BasisStats, at: st
   .down { color:var(--dim); }
   .down .name { color:var(--dim); }
 
+  .bought-h {
+    font-family:var(--serif); font-weight:400; font-size:1.6rem;
+    margin:3.5rem 0 .6rem; padding-top:1.75rem; border-top:1px solid var(--line);
+  }
+  .bought-lede { color:var(--dim); font-size:.85rem; margin:0 0 1.5rem; max-width:58ch; }
+  .bought-lede em { color:var(--ink); font-style:italic; }
+  ul.bought { list-style:none; padding:0; margin:0; }
+  ul.bought li { padding:1.15rem 0; border-bottom:1px solid var(--line); }
+  .bought-top { display:flex; justify-content:space-between; gap:1rem; align-items:baseline; }
+  .bought-top b { font-size:.95rem; }
+  .bought-top .amt { font-family:var(--mono); font-size:.85rem; color:var(--live); white-space:nowrap; }
+  ul.bought .why { color:var(--dim); font-size:.82rem; margin:.5rem 0 .6rem; max-width:62ch; }
+  ul.bought .prov { font-family:var(--mono); font-size:.7rem; color:var(--faint); margin:0; line-height:1.7; }
+  ul.bought .prov a { color:var(--dim); }
+  ul.bought .prov .ok { color:var(--dim); }
+  ul.bought .prov .bad { color:#D98A6A; }
+  @media (max-width:520px) {
+    .bought-top { flex-direction:column; gap:.2rem; }
+    ul.bought .prov { word-break:break-all; }
+  }
+
   footer { margin-top:3rem; color:var(--dim); font-size:.8rem; max-width:56ch; }
   footer p { margin:0 0 .9rem; }
   a { color:var(--ink); text-decoration:none; border-bottom:1px solid var(--faint); }
@@ -145,6 +167,32 @@ export function page(decisions: Map<string, Decision>, basis: BasisStats, at: st
   </section>
 
   <ul>${entries.map(([id, d], i) => row(id, d, i)).join('')}</ul>
+
+  <h2 class="bought-h">What this agent pays for</h2>
+  <p class="bought-lede">
+    Services it does not own, over x402 on Celo mainnet, from
+    <a href="https://celoscan.io/address/${AGENT_WALLET}">${AGENT_WALLET.slice(0, 6)}…${AGENT_WALLET.slice(-4)}</a>.
+    Every hash below settles on Celoscan. x402 pays as an EIP-3009 authorisation, so the
+    transaction's sender is the facilitator that broadcast it — the payer is in the
+    <em>Transfer</em> log.
+  </p>
+  <ul class="bought">
+    ${PURCHASES.map(
+      (p) => `<li>
+      <div class="bought-top">
+        <b>${esc(p.service)}</b>
+        <span class="amt">${esc(p.amount)}</span>
+      </div>
+      <p class="why">${esc(p.why)}</p>
+      <p class="prov">
+        ${esc(p.endpoint)}<br>
+        <a href="https://celoscan.io/tx/${esc(p.tx)}">${esc(p.tx.slice(0, 18))}…</a>
+        · <span class="${p.outcome === 'delivered' ? 'ok' : 'bad'}">${esc(p.outcome)}</span>
+        · ${esc(p.at)}
+      </p>
+    </li>`
+    ).join('')}
+  </ul>
 
   <footer>
     <p>

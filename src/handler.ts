@@ -15,6 +15,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { scan, type CorridorReading } from './scan.js'
 import { stats, deviation, WARMUP_SAMPLES } from './basis.js'
 import { page } from './page.js'
+import { PURCHASES } from './purchases.js'
 import { readAll, skewBps, MAX_SKEW_BPS, type Inventory } from './inventory.js'
 
 /** Recompute at most this often; Stitch polls faster than the venue moves. */
@@ -205,6 +206,21 @@ export async function handle(req: IncomingMessage, res: ServerResponse): Promise
               ? 'No basis history and no seed: this copy is serverless and has no disk. Calibration accumulates on the machine actually quoting.'
               : undefined,
         },
+        // The services this agent pays for, with the settlement hash for each.
+        // Listed here as well as on the board so the claim is checkable without
+        // reading HTML, and stated with outcomes rather than only successes.
+        buys: PURCHASES.map((p) => ({
+          service: p.service,
+          endpoint: p.endpoint,
+          amount: p.amount,
+          why: p.why,
+          tx: p.tx,
+          celoscan: `https://celoscan.io/tx/${p.tx}`,
+          outcome: p.outcome,
+          at: p.at,
+        })),
+        payerNote:
+          'x402 settles as an EIP-3009 authorisation: this wallet signs and a facilitator broadcasts, so each transaction’s sender is the facilitator and the payer appears in the ERC-20 Transfer log.',
         corridors: [...all.entries()].map(([id, d]) => ({
           id,
           quoting: d.quoting,
